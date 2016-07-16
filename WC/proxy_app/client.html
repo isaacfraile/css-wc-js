@@ -1,0 +1,302 @@
+
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//HbbTV//1.1.1//EN" "http://www.hbbtv.org/dtd/HbbTV-1.1.1.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<html class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="Content-Type: application/vnd.hbbtv.xhtml+xml; charset=UTF-8" />
+    <title></title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+<script src="http://cdn.dashjs.org/latest/dash.all.min.js"></script>
+<script>
+
+var ua = navigator.userAgent.toLowerCase();
+
+var isIE = /*@cc_on!@*/ false || !!document.documentMode;
+var isEdge = !isIE && !!window.StyleMedia;
+var isAndroid = ua.indexOf("android") > -1;
+
+var first = true;
+var syncTime = 0;
+var duration = 0;
+var seekAndroid = 0.5;
+
+var isLive = false;
+
+//// ---------------------------------------------- VOD ------------------------------------------/////
+//var url = "http://192.168.10.124:1935/vod/mp4:sample.mp4/manifest.mpd";
+var url = "http://dash.edgesuite.net/dash264/TestCases/1a/netflix/exMPD_BIP_TC1.mpd";
+//var url = "http://demo.unified-streaming.com/video/ateam/ateam.ism/ateam.mpd";
+//var url = "http://dash.edgesuite.net/dash264/TestCases/1a/sony/SNE_DASH_SD_CASE1A_REVISED.mpd";
+//var url = "http://dash.edgesuite.net/dash264/TestCases/2a/qualcomm/1/MultiResMPEG2.mpd";
+//var url = "http://dash.edgesuite.net/akamai/test/caption_test/ElephantsDream/elephants_dream_480p_heaac5_1.mpd";
+//var url = "http://global.mediaclienttest.edgesuite.net/test/video/coral/coral-single.mpd";
+//var url = "http://192.168.10.124:1935/vod/mp4:video_100K.mp4/manifest.mpd";
+
+//// ---------------------------------------------- LIVE -----------------------------------------/////
+//var url = "http://vm2.dashif.org/livesim/testpic_2s/Manifest.mpd";
+//var url = "http://192.168.10.124:1935/live/video1.stream/manifest.mpd";
+//var url = "http://live.unified-streaming.com/loop/loop.isml/loop.mpd?format=mp4&session_id=25020";
+//var url = "http://irtdashreference-i.akamaihd.net/dash/live/901161/bfs/manifestARD.mpd";
+
+
+function startTime() {
+    document.getElementById("videoPlayer").controls = false;
+    document.getElementById('playerDiv').style.display = 'block';
+    document.getElementById('buttons').style.display = 'none';
+    var vid = document.getElementById("videoPlayer");
+    var player = dashjs.MediaPlayer().create();
+    player.initialize(vid, url, true);
+
+    if (isAndroid) {
+        window.addEventListener('touchstart', function videoStart() {
+            vid.play();
+            this.removeEventListener('touchstart', videoStart);
+        });
+    }
+
+    if (!isLive) {
+        vid.oncanplay = function() {
+            duration = vid.duration;
+            var ws = new WebSocket("ws://192.168.10.124:1337", 'echo-protocol');
+
+            ws.onopen = function() {
+                ws.send("Message to send");
+            };
+
+            ws.onmessage = function(message) {
+                try {
+                    var d = message.data;
+                    if (duration > 0) syncTime = (d / 1000000000) % duration;
+
+                    if (!isAndroid && !isIE && !isEdge) {
+                        if (first) {
+                            vid.currentTime = syncTime + 3;
+                            first = false;
+                        }
+                        time_repr = vid.currentTime;
+
+                        if (time_repr < syncTime - 2) {
+                            vid.currentTime = syncTime + 5;
+                        } else {
+
+                            dif = Math.round((time_repr - syncTime) * 1000) / 1000;
+                            if (dif > -0.02 && dif < 0.02) {
+                                aux = 1;
+                            } else {
+                                if (dif < -2 || dif > 2) {
+                                    vid.currentTime = syncTime + 2;
+                                    aux = 0;
+                                } else aux = 1 - Math.round(dif * 50) / 100;
+                            }
+                            if (vid.paused && aux >= 0.5) vid.play();
+
+                            if (aux > 1.5) aux = 1.5;
+                            else if (aux < 0.5 && !vid.paused) {
+                                vid.pause();
+                                aux = 0.5;
+                            }
+
+                            if (vid.playbackRate != aux && !vid.paused) {
+                                vid.playbackRate = aux;
+                            }
+                        }
+                        document.querySelector("#sp").innerHTML = vid.playbackRate;
+                        document.querySelector("#diff").innerHTML = dif;
+                    }
+
+                    ////////----------------- ANDROID && IE -----------------------////////
+                    // Android no soporta modificar el vid.playbackRate i per tnt s'ha de fer seek
+                    else {
+
+                        if (first) {
+                            vid.currentTime = syncTime + 5;
+                            first = false;
+                        }
+
+                        aux = Math.round((vid.currentTime - syncTime) * 1000) / 1000;
+                        if (aux <= -0.15) {
+                            vid.currentTime = syncTime + seekAndroid;
+                            if (seekAndroid <= 2) seekAndroid = seekAndroid * 2;
+                        } else if (aux > -0.15 && aux <= 0.05) {
+                            seekAndroid = 0.5;
+                        } else if (aux > 0.05 && aux <= 1) {
+                            vid.pause();
+                            mysleep = aux * 60;
+                            if (mysleep <= 40) mysleep = 40;
+                            else if (mysleep >= 200) mysleep = 200;
+                            setTimeout(function() {
+                                vid.play();
+                            }, mysleep);
+                        } else if (aux > 1 && aux <= 4) {
+                            vid.pause();
+                        } else if (aux > 4) {
+                            seekAndroid = 0.5;
+                            vid.currentTime = syncTime + seekAndroid;
+                        }
+
+                        document.querySelector("#sp").innerHTML = "seek";
+                        document.querySelector("#diff").innerHTML = aux;
+                    }
+
+                } catch (e) {
+                    alert(message.data);
+                    return;
+                }
+            };
+        };
+    } else {
+        vid.oncanplay = function() {
+            var ws = new WebSocket("ws://192.168.10.124:1337", 'echo-protocol');
+
+            ws.onopen = function() {
+                ws.send("Message to send");
+            };
+
+            ws.onmessage = function(message) {
+                try {
+                    var d = message.data;
+                    syncTime = (d / 1000000000);
+
+                    if (!isAndroid && !isIE && !isEdge) {
+
+                        time_repr = vid.currentTime;
+
+                        var dif = parseInt((time_repr - syncTime) * 1000) / 1000;
+                        if(dif > -0.05 && dif < 0.05) {
+                            aux = 0;
+                        }
+
+                        else aux = Math.round((syncTime - time_repr + 0.02) * 10) / 10;
+                        if (aux <= 0) aux = 1 + parseInt(30 * aux) / 10;
+                        else aux = parseInt(0.5 + 10 * aux) / 10 + 1;
+
+                        if (aux > 1.5) aux = 1.5;
+                        else if (aux < 0.5 && !vid.paused) vid.pause();
+
+                        if (vid.paused && aux >= 0) vid.play();
+
+                        if (vid.playbackRate != aux && !vid.paused) {
+                            vid.playbackRate = aux;
+
+                        }
+                        document.querySelector("#sp").innerHTML = vid.playbackRate;
+                        document.querySelector("#diff").innerHTML = parseInt((time_repr - syncTime) * 1000) / 1000;
+                    }
+
+                    ///////////////////////////// ANDROID && IE /////////////////////////////////////////
+                    else {
+
+                        time_repr = vid.currentTime;
+                        aux = parseInt((time_repr - syncTime) * 100) / 100;
+
+                        if (aux > 0.05) {
+                            vid.pause();
+                            setTimeout(function() {
+                                vid.play();
+                            }, 100);
+                        }
+                        else if (aux < -0.05){
+                            vid.currentTime = syncTime;
+                        }
+                        document.querySelector("#sp").innerHTML = "seek";
+                        document.querySelector("#diff").innerHTML = parseInt((time_repr - syncTime) * 1000) / 1000;
+                    }
+
+                } catch (e) {
+                    alert(message.data);
+                    return;
+                }
+            };
+        };
+    }
+}
+
+function startTimeMaster() {
+
+    var vid = document.getElementById("videoPlayer");
+    document.getElementById('playerDiv').style.display = 'block';
+    document.getElementById('buttons').style.display = 'none';
+    document.getElementById('clock1').style.display = 'none';
+    document.getElementById('clock2').style.display = 'none';
+    var player = dashjs.MediaPlayer().create();
+
+    if (isAndroid) {
+        window.addEventListener('touchstart', function videoStart() {
+            vid.play();
+            this.removeEventListener('touchstart', videoStart);
+        });
+    }
+
+    if (isLive) {
+        document.getElementById("videoPlayer").controls = false;
+        player.initialize(vid, url, true);
+    } else {
+        document.getElementById("videoPlayer").controls = true;
+        player.initialize(vid, url, false);
+    }
+    var ws2 = new WebSocket("ws://192.168.10.124:1338", 'echo-protocol');
+
+    vid.ontimeupdate = function() {
+        var d = new Date();
+        ws2.send(1000000000+vid.currentTime-(d.getTime()/1000000000));
+    };
+}
+
+function login() {
+    var ws3 = new WebSocket("ws://192.168.10.124:1340", 'echo-protocol');
+
+    ws3.onopen = function() {
+        ws3.send("Message to send");
+    };
+
+    ws3.onmessage = function(message) {
+        var haveMaster = message.data;
+        if (haveMaster == "true") document.getElementById('buttons1').style.display = 'none';
+    }
+
+}
+
+</script>
+<style>
+        table {
+            border-spacing: 10px;
+        }
+        .btn {
+            margin: 25px;
+            width: inherit;
+            font-size: 28px;
+        }
+        video {
+            width: 512px;
+            height: 288px;
+        }
+        .clock { border:1px solid #333; color:#000; font-size: 20pt; padding-left: 25px;}
+    </style>
+
+</head>
+
+<body onload="login()">
+    <h3>HbbTV Application</h3>
+    <div id="buttons">
+        <button id="buttons1" class="btn" onclick="startTimeMaster()">Master</button>
+        <button id="buttons2" class="btn" onclick="startTime()">Client</button>
+    </div>
+    <div id="playerDiv" style="display: none">
+        <table>
+        <tr><td>
+            <video id="videoPlayer" >
+            </video><br/>
+        </td></tr>
+        <tr><td>
+            <div id="clock1" class="clock"> Diff:<span id="diff"> </span> 
+            </div>
+            <div id="clock2" class="clock"> Speed:<span id="sp"></span>
+            </div>
+        </td></tr>
+    </div>
+</body>
+</html>

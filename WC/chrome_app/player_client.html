@@ -1,0 +1,33 @@
+<html>
+  <head>
+    <title>Player</title>
+    <script src="dash.all.min.js"></script>
+    <script src="js/protocol/algorithm.js"></script>
+    <script src="js/protocol/wc.js"></script>
+    <script src="js/clock.js"></script>
+    <script src="client.js"></script>
+    <style>
+        table {
+            border-spacing: 10px;
+        }
+
+        .clock { border:1px solid #333; color:#000; font-size: 20pt; padding-left: 25px;}
+    </style>
+  </head>
+  <body>
+    <div id="playerDiv">
+      <table>
+        <tr><td>
+            <video width="100%" height="auto" id="videoPlayer">
+            </video><br/>
+        </td></tr>
+        <tr><td>
+            <div class="clock"> Diff:<span id="diff"> </span> 
+            </div>
+            <div class="clock"> Speed:<span id="sp"></span>
+            </div>
+        </td></tr>
+      </table>
+    </div>
+  </body>
+</html>
