@@ -1,0 +1,30 @@
+<input type="button" value="Start" onclick="start()" id="startBtn"/>
+<div id="debugconsole"></div>
+
+<script>
+ var startBtn = document.getElementById('startBtn'),
+     debug = document.getElementById('debugconsole');
+
+ function start() {
+     if (navigator.getNetworkServices) {
+         //navigator.getNetworkServices('upnp:urn:schemas-upnp-org:service:ContentDirectory', showServices, error);
+         navigator.getNetworkServices([
+             'zeroconf:_boxee-jsonrpc._tcp',
+             'upnp:urn:schemas-upnp-org:service:ContentDirectory:1'
+         ], showServices, error);
+         startBtn.disabled = true;
+     } else {
+         debug.innerHTML += "<br>Service Discovery not supported!";
+     }
+ }
+
+function showServices( services ) {
+  // Show a list of all the services provided to the web page
+  for(var i = 0, l = services.length; i < l; i++) console.log( services[i].name + '(' + services[i].type + ')' );
+}
+
+ function error( err ) {
+   debug.innerHTML += "<br>An error occurred obtaining a local network service.";
+   startBtn.disabled = false;
+ }
+</script>
